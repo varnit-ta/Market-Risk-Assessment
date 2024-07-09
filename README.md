@@ -69,19 +69,25 @@ The LSTM model is defined using PyTorch's `nn.Module`. It consists of LSTM layer
 
 ```python
 class MarketRiskLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, output_size, dropout_rate):
+    def __init__(self, input_size, hidden_size, output_size, num_layers, dropout_rate):
         super(MarketRiskLSTM, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout_rate)
-        self.fc = nn.Linear(hidden_size, output_size)
+        self.fc1 = nn.Linear(hidden_size, hidden_size // 2)
+        self.fc2 = nn.Linear(hidden_size // 2, output_size)
+        self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout_rate)
-    
+        self.batch_norm = nn.BatchNorm1d(hidden_size)
+        
     def forward(self, x):
-        out, _ = self.lstm(x)
+        h0 = torch.zeros(self.lstm.num_layers, x.size(0), self.lstm.hidden_size).to(x.device)
+        c0 = torch.zeros(self.lstm.num_layers, x.size(0), self.lstm.hidden_size).to(x.device)
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.relu(out[:, -1, :])
         out = self.dropout(out)
-        out = self.fc(out[:, -1, :])
+        out = self.batch_norm(out)
+        out = self.relu(self.fc1(out))
+        out = self.fc2(out)
         return out
-
-model = MarketRiskLSTM(input_size, hidden_size, num_layers, output_size, dropout_rate)
 ```
 
 ## Training the Model
